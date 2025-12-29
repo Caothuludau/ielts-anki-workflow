@@ -88,6 +88,8 @@ HOTKEY_TASK1=ctrl+alt+r
 GEMINI_API_KEY=YOUR_API_KEY_HERE
 GEMINI_URL=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
 PROMPT_FILE=prompt.txt
+```
+
 🚀 Usage
 Vocabulary
 Copy an English word

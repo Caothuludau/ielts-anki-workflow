@@ -126,17 +126,6 @@ This is not a SaaS.
 
 It’s a small tool built to remove unnecessary friction from serious language learning.
 
-yaml
-Copy code
-
----
-
-## 4️⃣ DECOR NHẸ NHÀNG (KHÔNG LỐ)
-
-Nếu muốn nhìn repo “xịn” hơn một tí:
-
-### Badges (tuỳ chọn)
-
 ```markdown
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-lightgrey)

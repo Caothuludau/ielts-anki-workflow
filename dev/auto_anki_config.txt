@@ -1,0 +1,20 @@
+ANKI_URL=http://127.0.0.1:8765
+
+
+#Vocab
+DECK=Open Source English
+MODEL=Open Source
+HOTKEY=ctrl+alt+a
+ALLOW_DUPLICATE=true
+
+#Sentence
+DECK_TASK1=Review Task 1
+MODEL_TASK1=IELTS Writing Revise
+HOTKEY_TASK1=ctrl+alt+r
+GEMINI_API_KEY=<api_key_here>
+PROMPT_FILE=prompt.txt
+GEMINI_URL=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+
+
+
+

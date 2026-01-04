@@ -3,14 +3,19 @@ import time
 import requests
 import pyperclip
 import keyboard
+import re
+import hashlib
+import json
+import base64
+from urllib.parse import urlparse, unquote
 from bs4 import BeautifulSoup
 import sys
 
-CONFIG_FILE = Path("./auto_anki_config.txt")
+CONFIG_FILE = Path("C:\\Users\\Admin\\Desktop\\Anki Project\\dev\\auto_anki_config.txt")
 sys.stdout.reconfigure(encoding="utf-8")
 
 if not CONFIG_FILE.exists():
-    print("auto_anki_config.txt not found")
+    print("auto_anki_config.txt not found " + str(CONFIG_FILE))
     input("Press Enter to exit...")
     exit(1)
 
@@ -69,7 +74,8 @@ def add_note(data):
             "Audio": "",
             "Definition": data.get("definition", ""),
             "Extra information": data.get("examples", ""),
-            "Synonyms": data.get("synonyms", "")
+            "Synonyms": data.get("synonyms", ""),
+            "Image": data.get("image", "")
         },
         "tags": ["cambridge"],
         "options": {
@@ -132,6 +138,78 @@ def fetch_cambridge(word):
         "synonyms": synonyms
     }
 
+# ---------- Bing Image Fetcher ----------
+def fetch_image_bing(word):
+    """
+    Fetch first image result from Bing Images
+    """
+    query = requests.utils.quote(word)
+    url = f"https://www.bing.com/images/search?q={query}&form=HDRSC2"
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
+
+    r = requests.get(url, headers=headers, timeout=10)
+    r.raise_for_status()
+
+    # Try to parse the page for image metadata. Bing puts a JSON blob in
+    # the `m` attribute of anchors with class `iusc` that contains `murl`.
+    soup = BeautifulSoup(r.text, "lxml")
+    for a in soup.select("a.iusc"):
+        m_attr = a.get("m")
+        if not m_attr:
+            continue
+        try:
+            data = json.loads(m_attr)
+            murl = data.get("murl") or data.get("turl")
+            if murl:
+                return murl
+        except Exception:
+            continue
+
+    # Fallback: regex search for murl
+    matches = re.findall(r'"murl":"(.*?)"', r.text)
+    if matches:
+        return matches[0]
+
+    return None
+
+
+def add_image_to_anki(word, image_url):
+    """
+    Download image and store it in Anki media
+    """
+    try:
+        r = requests.get(image_url, timeout=10)
+        r.raise_for_status()
+
+        # Try to determine extension from URL path
+        path = urlparse(image_url).path
+        if path:
+            ext = unquote(path).split('.')[-1].split('?')[0]
+        else:
+            ext = ''
+
+        if not ext or '/' in ext or len(ext) > 5:
+            ext = 'jpg'
+
+        # deterministic filename
+        filename = f"{hashlib.md5(word.encode()).hexdigest()}.{ext}"
+
+        # AnkiConnect expects base64-encoded file data
+        b64 = base64.b64encode(r.content).decode('ascii')
+
+        anki("storeMediaFile", {
+            "filename": filename,
+            "data": b64
+        })
+
+        return f'<img src="{filename}">'
+
+    except Exception as e:
+        log(f"Lỗi tải ảnh: {e}")
+        return ""
 
 # ---------- Hotkey ----------
 def on_hotkey():
@@ -152,9 +230,18 @@ def on_hotkey():
         if not data or not data["definition"]:
             log("Không lấy được dữ liệu Cambridge")
             return
+        
+        log(f"Đang tìm ảnh minh họa...")
+        img_url = fetch_image_bing(word)
+        image_html = ""
 
+        if img_url:
+            image_html = add_image_to_anki(word, img_url)
+
+        log(f"IMAGE HTML: {image_html}")
         add_note({
             "word": word,
+            "image": image_html,
             **data
         })
 

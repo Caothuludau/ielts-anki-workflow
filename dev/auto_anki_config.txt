@@ -11,7 +11,7 @@ ALLOW_DUPLICATE=true
 DECK_TASK1=Review Task 1
 MODEL_TASK1=IELTS Writing Revise
 HOTKEY_TASK1=ctrl+alt+r
-GEMINI_API_KEY=<api_key_here>
+GEMINI_API_KEY=hehe
 PROMPT_FILE=prompt.txt
 GEMINI_URL=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
 

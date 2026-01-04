@@ -11,7 +11,7 @@ from urllib.parse import urlparse, unquote
 from bs4 import BeautifulSoup
 import sys
 
-CONFIG_FILE = Path("C:\\Users\\Admin\\Desktop\\Anki Project\\dev\\auto_anki_config.txt")
+CONFIG_FILE = Path("./auto_anki_config.txt")
 sys.stdout.reconfigure(encoding="utf-8")
 
 if not CONFIG_FILE.exists():

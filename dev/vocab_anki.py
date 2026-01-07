@@ -10,6 +10,8 @@ import base64
 from urllib.parse import urlparse, unquote
 from bs4 import BeautifulSoup
 import sys
+import traceback
+from datetime import datetime
 
 CONFIG_FILE = Path("./auto_anki_config.txt")
 sys.stdout.reconfigure(encoding="utf-8")
@@ -140,8 +142,10 @@ def fetch_cambridge(word):
 
 # ---------- Bing Image Fetcher ----------
 def fetch_image_bing(word):
-    """
-    Fetch first image result from Bing Images
+    """Return a list of candidate image URLs from Bing Images for `word`.
+
+    This collects `murl` values from `a.iusc` JSON blobs and falls back to
+    regex extraction. The caller should attempt downloads and retry.
     """
     query = requests.utils.quote(word)
     url = f"https://www.bing.com/images/search?q={query}&form=HDRSC2"
@@ -150,66 +154,122 @@ def fetch_image_bing(word):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     }
 
-    r = requests.get(url, headers=headers, timeout=10)
-    r.raise_for_status()
-
-    # Try to parse the page for image metadata. Bing puts a JSON blob in
-    # the `m` attribute of anchors with class `iusc` that contains `murl`.
-    soup = BeautifulSoup(r.text, "lxml")
-    for a in soup.select("a.iusc"):
-        m_attr = a.get("m")
-        if not m_attr:
-            continue
-        try:
-            data = json.loads(m_attr)
-            murl = data.get("murl") or data.get("turl")
-            if murl:
-                return murl
-        except Exception:
-            continue
-
-    # Fallback: regex search for murl
-    matches = re.findall(r'"murl":"(.*?)"', r.text)
-    if matches:
-        return matches[0]
-
-    return None
-
-
-def add_image_to_anki(word, image_url):
-    """
-    Download image and store it in Anki media
-    """
     try:
-        r = requests.get(image_url, timeout=10)
+        log(f"Searching images for: {word}")
+        log(f"Image search URL: {url}")
+        r = requests.get(url, headers=headers, timeout=10)
         r.raise_for_status()
-
-        # Try to determine extension from URL path
-        path = urlparse(image_url).path
-        if path:
-            ext = unquote(path).split('.')[-1].split('?')[0]
-        else:
-            ext = ''
-
-        if not ext or '/' in ext or len(ext) > 5:
-            ext = 'jpg'
-
-        # deterministic filename
-        filename = f"{hashlib.md5(word.encode()).hexdigest()}.{ext}"
-
-        # AnkiConnect expects base64-encoded file data
-        b64 = base64.b64encode(r.content).decode('ascii')
-
-        anki("storeMediaFile", {
-            "filename": filename,
-            "data": b64
-        })
-
-        return f'<img src="{filename}">'
-
     except Exception as e:
-        log(f"Lỗi tải ảnh: {e}")
+        log(f"Image search failed: {e}", level="WARN")
+        log_exception(e)
+        return []
+
+    candidates = []
+    try:
+        soup = BeautifulSoup(r.text, "lxml")
+        for a in soup.select("a.iusc"):
+            m_attr = a.get("m")
+            if not m_attr:
+                continue
+            try:
+                data = json.loads(m_attr)
+                murl = data.get("murl") or data.get("turl")
+                if murl:
+                    candidates.append(murl)
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    if not candidates:
+        matches = re.findall(r'"murl":"(https?://[^\"]+)"', r.text)
+        if matches:
+            candidates.extend(matches)
+        else:
+            matches2 = re.findall(r'murl&gt;&quot;:&quot;(https?://[^&]+)&', r.text)
+            if matches2:
+                candidates.extend(matches2)
+
+    # dedupe while preserving order
+    seen = set()
+    out = []
+    for u in candidates:
+        if u not in seen:
+            seen.add(u)
+            out.append(u)
+
+    log(f"Found {len(out)} candidate image URLs")
+    return out
+
+
+def add_image_to_anki(word, image_urls, max_retries: int = 10):
+    """Try to download image(s) from `image_urls` and store the first valid
+    image in Anki media. `image_urls` may be a single URL or an iterable.
+
+    Tries up to `max_retries` candidate URLs and logs each attempt.
+    """
+    if not image_urls:
         return ""
+
+    if isinstance(image_urls, str):
+        candidates = [image_urls]
+    else:
+        candidates = list(image_urls)
+
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+
+    tried = 0
+    for img_url in candidates:
+        if tried >= max_retries:
+            break
+        tried += 1
+        log(f"Trying image #{tried}: {img_url}")
+        try:
+            r = requests.get(img_url, headers=headers, timeout=10)
+            if r.status_code != 200:
+                log(f"Image URL returned status {r.status_code}", level="DEBUG")
+                continue
+
+            ctype = r.headers.get("Content-Type", "")
+            log(f"Image response content-type: {ctype}")
+            if not ctype.startswith("image") or not r.content:
+                log("Not an image or empty response", level="DEBUG")
+                continue
+
+            # Try to determine extension from URL path
+            path = urlparse(img_url).path
+            if path:
+                ext = unquote(path).split('.')[-1].split('?')[0]
+            else:
+                ext = ''
+
+            if not ext or '/' in ext or len(ext) > 5:
+                # derive from content-type
+                if "png" in ctype:
+                    ext = 'png'
+                elif "gif" in ctype:
+                    ext = 'gif'
+                else:
+                    ext = 'jpg'
+
+            filename = f"{hashlib.md5(word.encode()).hexdigest()}.{ext}"
+            b64 = base64.b64encode(r.content).decode('ascii')
+
+            anki("storeMediaFile", {
+                "filename": filename,
+                "data": b64
+            })
+
+            log(f"Stored media as {filename}")
+            return f'<img src="{filename}">'
+
+        except Exception as e:
+            log(f"Failed to download/store image: {e}", level="DEBUG")
+            log_exception(e)
+            continue
+
+    log("No valid image found after retries", level="WARN")
+    return ""
 
 # ---------- Hotkey ----------
 def on_hotkey():
@@ -232,11 +292,11 @@ def on_hotkey():
             return
         
         log(f"Đang tìm ảnh minh họa...")
-        img_url = fetch_image_bing(word)
+        candidates = fetch_image_bing(word)
         image_html = ""
 
-        if img_url:
-            image_html = add_image_to_anki(word, img_url)
+        if candidates:
+            image_html = add_image_to_anki(word, candidates, max_retries=10)
 
         log(f"IMAGE HTML: {image_html}")
         add_note({
@@ -251,7 +311,6 @@ def on_hotkey():
         log(f"Lỗi: {e}")
 
 
-
 def main():
     log("===================================")
     log("Auto Anki Cambridge Helper")
@@ -263,8 +322,13 @@ def main():
     keyboard.add_hotkey(HOTKEY, on_hotkey)
     keyboard.wait()
 
-def log(msg):
-    print(f"[AUTO-ANKI] {msg}", flush=True)
+def log(msg, level="INFO"):
+    print(f"[AUTO-ANKI] {datetime.now().isoformat()} {level}: {msg}", flush=True)
+
+
+def log_exception(e: Exception):
+    tb = traceback.format_exc()
+    print(f"[AUTO-ANKI] {datetime.now().isoformat()} ERROR: {e}\n{tb}", flush=True)
 
 if __name__ == "__main__":
     main()

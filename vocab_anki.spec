@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['vocab_anki.py'],
+    ['dev\\vocab_anki.py'],
     pathex=[],
     binaries=[],
     datas=[],
@@ -22,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='Auto-Anki-Cambridge',
+    name='vocab_anki',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

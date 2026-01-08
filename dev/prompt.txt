@@ -11,18 +11,20 @@ STRICT RULES:
 - Do NOT ask questions or add suggestions.
 - Do NOT include any English words in the Hint.
 - The Hint must be 5–7 Vietnamese words only.
-- The Hint must describe the meaning of the answer but nothing exact to the answer itself.
+- The Hint must describe the meaning of the answer but not reveal the exact phrase.
 
 OUTPUT FORMAT (EXACTLY):
-Cloze output:
+Sentence:
+<original full sentence without angle brackets>
+
+Cloze:
 <sentence with ___>
 
 Answer:
-<original full sentence>
+<only the original phrase that was inside < >>
 
 Hint:
 <5–7 Vietnamese words, no punctuation>
 
 INPUT:
 {{INPUT}}
-

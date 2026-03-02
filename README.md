@@ -1,7 +1,7 @@
 > Note: This README was drafted with the assistance of AI. The content accurately reflects the tool’s functionality. I plan to rewrite and refine this documentation manually in the future.
-# auto-anki-ielts
+# auto-anki-ielts-flashcard
 
-**auto-anki-ielts** là công cụ giúp **tự động tạo flashcard Anki chất lượng cao** cho việc học từ vựng tiếng Anh và luyện IELTS Writing, nhằm loại bỏ các thao tác thủ công lặp đi lặp lại khi học.
+**auto-anki-ielts-flashcard** là công cụ giúp **tự động tạo flashcard Anki chất lượng cao** cho việc học từ vựng tiếng Anh và luyện IELTS Writing, nhằm loại bỏ các thao tác thủ công lặp đi lặp lại khi học.
 
 Thay vì:
 - Tra từ

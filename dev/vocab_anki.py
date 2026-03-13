@@ -201,38 +201,51 @@ def call_vocab_gemini(prompt: str) -> str | None:
 
 
 def parse_vocab_output(text: str, target_langs: list[str]):
-    def extract(label):
-        m = re.search(rf"^{label}:\s*(.*?)(?:\n\n|$)", text, re.S | re.M)
-        return m.group(1).strip() if m else ""
+    raw = text.strip()
 
-    term = extract("Term")
-    ipa = extract("IPA_UK")
-    definition_en = extract("Definition_en")
-    examples_block = extract("Examples_en")
-    synonyms = extract("Synonyms")
-    image_query = extract("ImageQuery")
+    # strip markdown fences if Gemini wrapped the JSON
+    if raw.startswith("```"):
+        # try to find the first '{' and last '}'
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            raw = raw[start : end + 1]
 
-    translations_block = extract("Translations")
-    translations = {}
-    for line in translations_block.splitlines():
-        line = line.strip()
-        if not line or ":" not in line:
-            continue
-        code, val = line.split(":", 1)
-        code = code.strip()
-        val = val.strip()
-        if not code or not val:
-            continue
-        translations[code] = val
+    try:
+        obj = json.loads(raw)
+    except Exception as e:
+        raise ValueError(f"Gemini vocab JSON parse failed: {e}; raw={raw[:500]}") from e
+
+    term = (obj.get("term") or "").strip()
+    ipa = (obj.get("ipa_uk") or "").strip()
+    definition_en = (obj.get("definition_en") or "").strip()
+
+    if not definition_en:
+        raise ValueError("Gemini output invalid: missing definition_en")
+
+    translations_obj = obj.get("translations") or {}
+    if not isinstance(translations_obj, dict):
+        translations_obj = {}
 
     # keep only requested languages (if provided)
     if target_langs:
-        translations = {k: v for k, v in translations.items() if k in set(target_langs)}
+        wanted = set(target_langs)
+        translations = {k: v for k, v in translations_obj.items() if k in wanted}
+    else:
+        translations = translations_obj
 
-    examples = "\n".join([ln.strip() for ln in examples_block.splitlines() if ln.strip()])
+    examples_list = obj.get("examples_en") or []
+    if not isinstance(examples_list, list):
+        examples_list = []
+    examples = "\n".join([str(ln).strip() for ln in examples_list if str(ln).strip()])
 
-    if not definition_en:
-        raise ValueError("Gemini output invalid: missing Definition_en")
+    synonyms_list = obj.get("synonyms") or []
+    if isinstance(synonyms_list, list):
+        synonyms = ", ".join([str(s).strip() for s in synonyms_list if str(s).strip()])
+    else:
+        synonyms = str(synonyms_list).strip()
+
+    visual_query = (obj.get("visualSearchQuery") or "").strip()
 
     return {
         "term": term,
@@ -241,7 +254,7 @@ def parse_vocab_output(text: str, target_langs: list[str]):
         "translations": translations,
         "examples": examples,
         "synonyms": synonyms,
-        "image_query": image_query
+        "image_query": visual_query
     }
 
 
@@ -256,21 +269,24 @@ def format_definition_with_translations(definition_en: str, translations: dict) 
 
 
 # ---------- Bing Image Fetcher ----------
-def fetch_image_bing(word):
-    """Return a list of candidate image URLs from Bing Images for `word`.
+def fetch_image_bing(search_query: str):
+    """Return a list of candidate image URLs from Bing Images for `search_query`.
 
     This collects `murl` values from `a.iusc` JSON blobs and falls back to
     regex extraction. The caller should attempt downloads and retry.
     """
-    query = requests.utils.quote(word)
-    url = f"https://www.bing.com/images/search?q={query}&form=HDRSC2"
+    query = requests.utils.quote(search_query)
+    url = (
+        f"https://www.bing.com/images/search?"
+        f"q={query}&form=HDRSC2&mkt=en-US&setLang=en"
+    )
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     }
 
     try:
-        log(f"Searching images for: {word}")
+        log(f"Searching images for: {search_query}")
         log(f"Image search URL: {url}")
         r = requests.get(url, headers=headers, timeout=10)
         r.raise_for_status()
@@ -451,7 +467,10 @@ def on_hotkey():
         if gemini_payload and gemini_payload.get("image_query"):
             image_query = gemini_payload["image_query"]
 
-        candidates = fetch_image_bing(image_query)
+        # Bias image search toward conceptual, photo-like images and away from text-heavy assets
+        bing_query = f"{image_query} -text -poster -dictionary -document -quote -typography"
+
+        candidates = fetch_image_bing(bing_query)
         image_html = ""
 
         if candidates:

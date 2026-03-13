@@ -42,6 +42,20 @@ MODEL = config.get("MODEL", "Basic")
 HOTKEY = config.get("HOTKEY", "ctrl+alt+a")
 ALLOW_DUPLICATE = config.get("ALLOW_DUPLICATE", "true").lower() == "true"
 
+# ---------- Vocab (Gemini + languages) ----------
+VOCAB_SOURCE = config.get("VOCAB_SOURCE", "hybrid").strip().lower()  # cambridge|gemini|hybrid
+PHRASE_MAX_WORDS_CAMBRIDGE = int(config.get("PHRASE_MAX_WORDS_CAMBRIDGE", "5"))
+SOURCE_LANG = config.get("SOURCE_LANG", "en").strip().lower()
+TARGET_LANGS = [x.strip() for x in config.get("TARGET_LANGS", "vi").split(",") if x.strip()]
+
+VOCAB_GEMINI_URL = (config.get("VOCAB_GEMINI_URL") or config.get(
+    "GEMINI_URL",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+)).strip()
+VOCAB_GEMINI_API_KEY = (config.get("VOCAB_GEMINI_API_KEY") or config.get("GEMINI_API_KEY", "")).strip()
+VOCAB_PROMPT_FILE = Path(config.get("VOCAB_PROMPT_FILE", "./vocab_prompt.txt"))
+
+
 # ---------- Anki ----------
 def anki(action, params=None):
     payload = {
@@ -65,6 +79,7 @@ def note_exists(word):
 def add_note(data):
     word = data["word"].strip()
     cloze = make_cloze(word)
+    tags = data.get("tags") or ["vocab"]
 
     note = {
         "deckName": DECK,
@@ -79,7 +94,7 @@ def add_note(data):
             "Synonyms": data.get("synonyms", ""),
             "Image": data.get("image", "")
         },
-        "tags": ["cambridge"],
+        "tags": tags,
         "options": {
             "allowDuplicate": ALLOW_DUPLICATE
         }
@@ -139,6 +154,106 @@ def fetch_cambridge(word):
         "examples": examples,
         "synonyms": synonyms
     }
+
+
+# ---------- Gemini (vocab/phrase) ----------
+def load_vocab_prompt(user_input: str, target_langs: list[str]) -> str:
+    prompt_path = VOCAB_PROMPT_FILE
+    if not prompt_path.is_absolute():
+        prompt_path = Path.cwd() / prompt_path
+    base = prompt_path.read_text(encoding="utf-8")
+    return (base
+            .replace("{{INPUT}}", user_input)
+            .replace("{{TARGET_LANGS}}", ",".join(target_langs)))
+
+
+def call_vocab_gemini(prompt: str) -> str | None:
+    if not VOCAB_GEMINI_API_KEY:
+        return None
+
+    headers = {
+        "Content-Type": "application/json",
+        "X-goog-api-key": VOCAB_GEMINI_API_KEY
+    }
+
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt}
+                ]
+            }
+        ]
+    }
+
+    r = requests.post(VOCAB_GEMINI_URL, headers=headers, json=payload, timeout=30)
+
+    if r.status_code == 429:
+        log("Gemini rate limited (429), skipping", level="WARN")
+        return None
+
+    r.raise_for_status()
+    data = r.json()
+    try:
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError) as e:
+        raise ValueError(f"Unexpected Gemini response: {str(data)[:2000]}") from e
+
+
+def parse_vocab_output(text: str, target_langs: list[str]):
+    def extract(label):
+        m = re.search(rf"^{label}:\s*(.*?)(?:\n\n|$)", text, re.S | re.M)
+        return m.group(1).strip() if m else ""
+
+    term = extract("Term")
+    ipa = extract("IPA_UK")
+    definition_en = extract("Definition_en")
+    examples_block = extract("Examples_en")
+    synonyms = extract("Synonyms")
+    image_query = extract("ImageQuery")
+
+    translations_block = extract("Translations")
+    translations = {}
+    for line in translations_block.splitlines():
+        line = line.strip()
+        if not line or ":" not in line:
+            continue
+        code, val = line.split(":", 1)
+        code = code.strip()
+        val = val.strip()
+        if not code or not val:
+            continue
+        translations[code] = val
+
+    # keep only requested languages (if provided)
+    if target_langs:
+        translations = {k: v for k, v in translations.items() if k in set(target_langs)}
+
+    examples = "\n".join([ln.strip() for ln in examples_block.splitlines() if ln.strip()])
+
+    if not definition_en:
+        raise ValueError("Gemini output invalid: missing Definition_en")
+
+    return {
+        "term": term,
+        "ipa": ipa,
+        "definition_en": definition_en,
+        "translations": translations,
+        "examples": examples,
+        "synonyms": synonyms,
+        "image_query": image_query
+    }
+
+
+def format_definition_with_translations(definition_en: str, translations: dict) -> str:
+    definition_en = (definition_en or "").strip()
+    if not translations:
+        return definition_en
+    lines = [definition_en, "", "Translations:"]
+    for code, val in translations.items():
+        lines.append(f"- {code}: {val}")
+    return "\n".join(lines).strip()
+
 
 # ---------- Bing Image Fetcher ----------
 def fetch_image_bing(word):
@@ -274,9 +389,11 @@ def add_image_to_anki(word, image_urls, max_retries: int = 10):
 # ---------- Hotkey ----------
 def on_hotkey():
     try:
-        word = pyperclip.paste().strip().lower()
+        raw = pyperclip.paste().strip()
+        word = raw.lower()
+        word_count = len([p for p in word.split() if p.strip()])
 
-        if not word or " " in word and len(word.split()) > 5:
+        if not word or word_count > 30:
             log("Clipboard không phải từ / phrase hợp lệ")
             return
 
@@ -284,15 +401,57 @@ def on_hotkey():
             log(f"Đã tồn tại: {word}")
             return
 
-        log(f"Đang crawl Cambridge: {word}")
-        data = fetch_cambridge(word)
+        use_gemini = False
+        if VOCAB_SOURCE == "gemini":
+            use_gemini = True
+        elif VOCAB_SOURCE == "hybrid" and word_count > PHRASE_MAX_WORDS_CAMBRIDGE:
+            use_gemini = True
+
+        data = None
+        tags = []
+
+        if not use_gemini and VOCAB_SOURCE in ("cambridge", "hybrid"):
+            log(f"Đang crawl Cambridge: {word}")
+            data = fetch_cambridge(word)
+            tags.append("cambridge")
+
+        gemini_payload = None
+        if use_gemini or not data or not data.get("definition"):
+            log("Đang gọi Gemini cho vocab/phrase...")
+            prompt = load_vocab_prompt(raw, TARGET_LANGS)
+            gemini_text = call_vocab_gemini(prompt)
+            if gemini_text:
+                gemini_payload = parse_vocab_output(gemini_text, TARGET_LANGS)
+                tags.append("gemini")
+
+        if not data:
+            data = {"ipa": "", "definition": "", "examples": "", "synonyms": ""}
+
+        # Merge Gemini into Cambridge (prefer Cambridge IPA if present; prefer Cambridge definition if present)
+        if gemini_payload:
+            merged_definition_en = data.get("definition") or gemini_payload.get("definition_en", "")
+            merged_definition = format_definition_with_translations(
+                merged_definition_en,
+                gemini_payload.get("translations", {})
+            )
+            data["definition"] = merged_definition
+            if not data.get("ipa"):
+                data["ipa"] = gemini_payload.get("ipa", "")
+            if not data.get("examples"):
+                data["examples"] = gemini_payload.get("examples", "")
+            if not data.get("synonyms"):
+                data["synonyms"] = gemini_payload.get("synonyms", "")
 
         if not data or not data["definition"]:
-            log("Không lấy được dữ liệu Cambridge")
+            log("Không lấy được dữ liệu vocab")
             return
         
         log(f"Đang tìm ảnh minh họa...")
-        candidates = fetch_image_bing(word)
+        image_query = word
+        if gemini_payload and gemini_payload.get("image_query"):
+            image_query = gemini_payload["image_query"]
+
+        candidates = fetch_image_bing(image_query)
         image_html = ""
 
         if candidates:
@@ -302,18 +461,20 @@ def on_hotkey():
         add_note({
             "word": word,
             "image": image_html,
+            "tags": list(dict.fromkeys(["vocab"] + tags)),
             **data
         })
 
         log(f"Đã add thật sự: {word}")
 
     except Exception as e:
-        log(f"Lỗi: {e}")
+        log(f"Lỗi: {e}", level="ERROR")
+        log_exception(e)
 
 
 def main():
     log("===================================")
-    log("Auto Anki Cambridge Helper")
+    log("Auto Anki Vocab Helper")
     log(f"Hotkey: {HOTKEY}")
     log("Copy word -> press hotkey")
     log("Close this window to stop")

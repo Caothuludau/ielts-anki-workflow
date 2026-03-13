@@ -11,14 +11,13 @@ This tool lets you:
 
 ## ✨ Features
 
-### 1️⃣ Vocabulary from Cambridge Dictionary
-- Copy an English word or short phrase
+### 1️⃣ Vocabulary + Collocations (Cambridge + Gemini)
+- Copy an English word **or a long phrase/collocation**
 - Press a hotkey
 - Automatically:
-  - Fetch IPA (UK)
-  - Definition
-  - Example sentences
-  - Synonyms
+  - Fetch IPA (UK), definition, examples, synonyms (Cambridge when possible)
+  - Use **Gemini** for long phrases/collocations and as fallback when Cambridge fails
+  - Generate **translations/definitions to multiple languages** via Gemini (configurable)
   - Generate a smart cloze
   - Add everything to Anki
 
@@ -60,21 +59,31 @@ ANKI_URL=http://127.0.0.1:8765
 DECK=Open Source English
 MODEL=Open Source
 HOTKEY=ctrl+alt+a
+ALLOW_DUPLICATE=true
+
+# Vocab source + multilingual
+VOCAB_SOURCE=hybrid
+PHRASE_MAX_WORDS_CAMBRIDGE=5
+SOURCE_LANG=en
+TARGET_LANGS=vi,ja
+
+# Gemini (used for IELTS and for vocab when needed)
+GEMINI_API_KEY=YOUR_API_KEY_HERE
+GEMINI_URL=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+
+# Prompt templates
+PROMPT_FILE=prompt.txt
+VOCAB_PROMPT_FILE=vocab_prompt.txt
 
 # IELTS feature
 DECK_TASK1=Review
 MODEL_TASK1=IELTS Writing Revise
 HOTKEY_TASK1=ctrl+alt+r
-
-# Gemini
-GEMINI_API_KEY=YOUR_API_KEY_HERE
-GEMINI_URL=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
-PROMPT_FILE=prompt.txt
 ```
 
 🚀 Usage
   **Vocabulary**
-  1. Copy an English word
+  1. Copy an English word or phrase (collocations supported)
   2. Press Ctrl + Alt + A
   3. Card is added to Anki
 

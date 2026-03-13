@@ -7,6 +7,26 @@ MODEL=Open Source
 HOTKEY=ctrl+alt+a
 ALLOW_DUPLICATE=true
 
+# Vocab source + multilingual (next version)
+# cambridge = scrape Cambridge only
+# gemini    = Gemini only
+# hybrid    = Cambridge for short terms, Gemini for long phrases + fallback
+VOCAB_SOURCE=hybrid
+
+# Above this word-count, vocab will use Gemini (hybrid mode)
+PHRASE_MAX_WORDS_CAMBRIDGE=5
+
+# Languages (English -> targets)
+SOURCE_LANG=en
+TARGET_LANGS=vi
+
+# Gemini for vocab (optional; if not set, GEMINI_API_KEY/GEMINI_URL are used)
+VOCAB_GEMINI_API_KEY=
+VOCAB_GEMINI_URL=
+
+# Prompt template for vocab/phrases (can be relative to where you run the exe/script)
+VOCAB_PROMPT_FILE=vocab_prompt.txt
+
 #Sentence
 DECK_TASK1=Review Task 1
 MODEL_TASK1=IELTS Writing Revise

@@ -1,61 +1,117 @@
-# auto-anki-ielts
+> Note: This README was drafted with the assistance of AI. The content accurately reflects the tool’s functionality. I plan to rewrite and refine this documentation manually in the future.
+# auto-anki-ielts-flashcard
 
-Automate creating high-quality Anki cards for English vocabulary and IELTS Writing sentences.
+**auto-anki-ielts-flashcard** là công cụ giúp **tự động tạo flashcard Anki chất lượng cao** cho việc học từ vựng tiếng Anh và luyện IELTS Writing, nhằm loại bỏ các thao tác thủ công lặp đi lặp lại khi học.
 
-This tool lets you:
-- Copy a word or phrase → press a hotkey → Anki card is created automatically
-- Turn IELTS sentences into cloze-deletion revision cards using Gemini
-- Avoid repetitive manual Anki work and focus on actual learning
+Thay vì:
+- Tra từ
+- Copy IPA
+- Viết definition
+- Tạo cloze
+- Dán vào Anki
+
+Bạn chỉ cần:
+> **Copy nội dung → nhấn hotkey → card được tạo tự động trong Anki**
+
+Tool được thiết kế để **không phá flow học**, ưu tiên tốc độ và tính nhất quán hơn là giao diện.
 
 ---
 
-## ✨ Features
+## 🎯 Mục tiêu của công cụ
 
-### 1️⃣ Vocabulary + Collocations (Cambridge + Gemini)
-- Copy an English word **or a long phrase/collocation**
-- Press a hotkey
-- Automatically:
-  - Fetch IPA (UK), definition, examples, synonyms (Cambridge when possible)
-  - Use **Gemini** for long phrases/collocations and as fallback when Cambridge fails
-  - Generate **translations/definitions to multiple languages** via Gemini (configurable)
-  - Generate a smart cloze
-  - Add everything to Anki
+- Giảm tối đa thời gian tạo flashcard thủ công
+- Giữ người học tập trung vào **việc học**, không phải nhập liệu
+- Tạo card theo cấu trúc ổn định, phù hợp cho học dài hạn
+- Tối ưu cho người luyện **IELTS Writing** và học từ vựng học thuật
 
-### 2️⃣ IELTS Writing Sentence Revision
-- Copy a sentence with a target phrase marked using `< >`
-- Press a hotkey
-- The tool:
-  - Calls Gemini (free tier)
-  - Generates:
-    - Cloze sentence
-    - Full answer
-    - Short Vietnamese hint
-  - Adds a revision card to Anki
 ---
 
-## ⚙️ Requirements
+## ✨ Tính năng chính
+
+### 1️⃣ Tạo flashcard từ vựng (Vocabulary)
+
+Dùng khi học **từ đơn hoặc cụm từ ngắn**.
+
+**Cách dùng:**
+1. Copy một từ tiếng Anh
+2. Nhấn hotkey đã cấu hình
+3. Card được tạo tự động trong Anki
+
+**Tool sẽ tự động:**
+- Lấy phiên âm IPA (UK)
+- Lấy definition
+- Lấy ví dụ
+- Lấy synonyms
+- Tạo cloze phù hợp
+- Đưa toàn bộ vào Anki theo Card Type đã định nghĩa
+
+Phù hợp cho:
+- Từ vựng học thuật
+- Từ mới khi đọc báo, sách, essay
+- Học từ rời nhưng vẫn có ngữ cảnh
+
+---
+
+### 2️⃣ Ôn tập câu IELTS Writing (Sentence Revision)
+
+Dùng khi học **từ hoặc cụm từ trong ngữ cảnh câu**.
+
+**Cách dùng:**
+1. Đặt từ/cụm từ cần học trong dấu `< >`
+2. Copy toàn bộ câu
+3. Nhấn hotkey tương ứng
+
+**Ví dụ:**
+```
+
+Some people argue that shops should be permitted to sell food and beverages that are <scientifically proven> to be harmful to human health.
+
+```
+
+**Tool sẽ:**
+- Gọi Gemini (free tier)
+- Sinh:
+  - Câu cloze
+  - Đáp án đầy đủ
+  - Gợi ý nghĩa ngắn bằng tiếng Việt
+- Tạo flashcard dạng điền từ (type-in) trong Anki
+
+Phù hợp cho:
+- IELTS Writing Task 1 & Task 2
+- Collocations
+- Cụm từ học thuật theo ngữ cảnh thật
+
+---
+
+## ⚙️ Yêu cầu hệ thống
+
 - Windows
-- Anki (running)
+- Anki (đang chạy)
 - AnkiConnect add-on
-- Internet connection
-- Gemini API key (free tier is enough)
+- Kết nối Internet
+- Gemini API key (free tier là đủ)
 
 ---
 
-## 🛠️ Setup
+## 🛠️ Cài đặt
 
-### 1️⃣ Install AnkiConnect
-- Anki → Tools → Add-ons → Get Add-ons
-- Code: `2055492159`
+### 1️⃣ Cài AnkiConnect
 
-### 2️⃣ Prepare config file
+- Mở Anki
+- Tools → Add-ons → Get Add-ons
+- Nhập mã: `2055492159`
+- Khởi động lại Anki
 
-Create `auto_anki_config.txt` next to the executable:
+---
+
+### 2️⃣ Chuẩn bị file cấu hình
+
+Tạo file `auto_anki_config.txt` **cùng thư mục với file .exe**:
 
 ```ini
 ANKI_URL=http://127.0.0.1:8765
 
-# Vocabulary feature
+# Vocabulary
 DECK=Open Source English
 MODEL=Open Source
 HOTKEY=ctrl+alt+a
@@ -75,38 +131,68 @@ GEMINI_URL=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-fl
 PROMPT_FILE=prompt.txt
 VOCAB_PROMPT_FILE=vocab_prompt.txt
 
-# IELTS feature
+# IELTS Writing
 DECK_TASK1=Review
 MODEL_TASK1=IELTS Writing Revise
 HOTKEY_TASK1=ctrl+alt+r
 ```
 
-🚀 Usage
-  **Vocabulary**
-  1. Copy an English word or phrase (collocations supported)
-  2. Press Ctrl + Alt + A
-  3. Card is added to Anki
+---
 
-**IELTS Writing**
-  1. Copy a sentence with <target phrase>
-  2. Press Ctrl + Alt + R
-  3. Cloze revision card is added
+**Lưu ý:**
 
-📦 Build from Source
-  ```ini
-  python -m PyInstaller --onefile --console auto_anki.py
-  ```
-  The executable will be in the dist/ folder.
+* Tên Deck và Model **phải trùng tuyệt đối** với Anki
+* Sai chữ hoa/thường sẽ khiến tool không hoạt động
 
-⚠️ Notes
-  Hotkeys require the app to be running
-  Some antivirus software may flag the .exe (false positive)
-  Cambridge Dictionary HTML may change in the future
+---
 
-❤️ Final Words
-  This is not a startup.
-  This is not a SaaS.
-  It’s a small tool built to remove unnecessary friction from serious language learning.
+## 🚀 Cách sử dụng
+
+### Vocabulary
+
+1. Copy một từ tiếng Anh
+2. Nhấn `Ctrl + Alt + A`
+3. Flashcard được thêm vào Anki
+
+---
+
+### IELTS Writing
+
+1. Copy câu có `<từ hoặc cụm từ>`
+2. Nhấn `Ctrl + Alt + R`
+3. Card cloze được tạo tự động
+
+---
+
+## 📦 Build từ source
+
+```bash
+python -m PyInstaller --onefile --console auto_anki.py
+```
+
+File `.exe` sẽ nằm trong thư mục `dist/`.
+
+---
+
+## ⚠️ Lưu ý
+
+* Tool phải đang chạy thì hotkey mới hoạt động
+* Một số antivirus có thể cảnh báo file `.exe` (false positive)
+* HTML của Cambridge Dictionary có thể thay đổi trong tương lai
+
+---
+
+## ❤️ Lời cuối
+
+Đây không phải startup.
+Không phải SaaS.
+Không phải sản phẩm thương mại.
+
+Đây là một công cụ nhỏ, được viết ra để **loại bỏ ma sát không cần thiết** trong việc học ngôn ngữ nghiêm túc.
+
+Nếu bạn học đều đặn, tool này sẽ tiết kiệm cho bạn hàng trăm giờ nhập liệu.
+
+---
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-lightgrey)

@@ -167,7 +167,10 @@ HOTKEY_TASK1=ctrl+alt+r
 ## 📦 Build từ source
 
 ```bash
-python -m PyInstaller --onefile --console auto_anki.py
+powershell -ExecutionPolicy Bypass -File .\install_python.ps1
+python -m pip install PyInstaller   
+powershell -ExecutionPolicy Bypass -File .\build_local.ps1
+
 ```
 
 File `.exe` sẽ nằm trong thư mục `dist/`.
@@ -179,21 +182,6 @@ File `.exe` sẽ nằm trong thư mục `dist/`.
 * Tool phải đang chạy thì hotkey mới hoạt động
 * Một số antivirus có thể cảnh báo file `.exe` (false positive)
 * HTML của Cambridge Dictionary có thể thay đổi trong tương lai
-
----
-
-## ❤️ Lời cuối
-
-Đây không phải startup.
-Không phải SaaS.
-Không phải sản phẩm thương mại.
-
-Đây là một công cụ nhỏ, được viết ra để **loại bỏ ma sát không cần thiết** trong việc học ngôn ngữ nghiêm túc.
-
-Nếu bạn học đều đặn, tool này sẽ tiết kiệm cho bạn hàng trăm giờ nhập liệu.
-
----
-
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-lightgrey)
 ![Anki](https://img.shields.io/badge/anki-required-orange)
